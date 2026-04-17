@@ -12,11 +12,13 @@ $qry = $conn->query("SELECT * FROM `user_list` where user_id = '{$_GET['id']}'")
         <input type="hidden" name="id" value="<?php echo isset($user_id) ? $user_id : '' ?>">
         <div class="form-group">
             <label for="fullname" class="control-label">Full Name</label>
-            <input type="text" name="fullname" id="fullname" required class="form-control form-control-sm rounded-0" value="<?php echo isset($fullname) ? $fullname : '' ?>">
+            <input type="text" name="fullname" id="fullname" required class="form-control 
+            form-control-sm rounded-0" value="<?php echo htmlspecialchars($row['fullname'], ENT_QUOTES, 'UTF-8'); ?>">
         </div>
         <div class="form-group">
             <label for="username" class="control-label">Username</label>
-            <input type="text" name="username" id="username" required class="form-control form-control-sm rounded-0" value="<?php echo isset($username) ? $username : '' ?>">
+            <input type="text" name="username" id="username" required class="form-control 
+            form-control-sm rounded-0" value="<?php echo htmlspecialchars($row['username'], ENT_QUOTES, 'UTF-8'); ?>">
         </div>
         <div class="form-group">
             <label for="type" class="control-label">Type</label>

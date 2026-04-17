@@ -9,22 +9,45 @@ Class Actions extends DBConnection{
     function __destruct(){
         parent::__destruct();
     }
+    function require_login() {
+        if (!isset($_SESSION['user']) || !isset($_SESSION['user']['user_id'])) {
+            http_response_code(401);
+            exit('unauthorized');
+        }
+    }
+    function require_admin() {
+        require_login();
+        if (!isset($_SESSION['user']['type']) || $_SESSION['user']['type'] != 1) {
+            http_response_code(403);
+            exit('forbidden');
+        }
+    }
     function login(){
         extract($_POST);
-        $sql = "SELECT * FROM user_list where username = '{$username}' and `password` = '".md5($password)."' ";
-        @$qry = $this->query($sql)->fetchArray();
-        if(!$qry){
-            $resp['status'] = "failed";
-            $resp['msg'] = "Invalid username or password.";
-        }else{
-            $resp['status'] = "success";
-            $resp['msg'] = "Login successfully.";
-            foreach($qry as $k => $v){
-                if(!is_numeric($k))
-                $_SESSION[$k] = $v;
+
+        $username = $_POST['username'] ?? '';
+        $password = $_POST['password'] ?? '';
+
+        $stmt = $this->prepare("SELECT * FROM user_list WHERE username = :username AND password = :password");
+        $stmt->bindValue(':username', $username, SQLITE3_TEXT);
+        $stmt->bindValue(':password', md5($password), SQLITE3_TEXT);
+
+        $qry = $stmt->execute();
+        $data = $qry->fetchArray(SQLITE3_ASSOC);
+
+        if($data){
+            foreach($data as $k => $v){
+                if(!is_numeric($k) && $k != 'password'){
+                    $_SESSION['login_' . $k] = $v;
+                }
             }
+
+            $this->query("UPDATE user_list SET last_login = CURRENT_TIMESTAMP WHERE user_id = :id");
+            $_SESSION['login_type'] = $data['type'];
+            return json_encode(['status' => 'success']);
+        } else {
+            return json_encode(['status' => 'failed', 'msg' => 'Invalid username or password.']);
         }
-        return json_encode($resp);
     }
     function logout(){
         session_destroy();
@@ -51,10 +74,8 @@ Class Actions extends DBConnection{
         if(isset($cols) && isset($values)){
             $data = "(".implode(',',$cols).") VALUES (".implode(',',$values).")";
         }
-        
-
-       
-        @$check= $this->query("SELECT count(user_id) as `count` FROM user_list where `username` = '{$username}' ".($id > 0 ? " and user_id != '{$id}' " : ""))->fetchArray()['count'];
+        @$check= $this->query("SELECT count(user_id) as `count` FROM user_list where
+         `username` = '{$username}' ".($id > 0 ? " and user_id != '{$id}' " : ""))->fetchArray()['count'];
         if(@$check> 0){
             $resp['status'] = 'failed';
             $resp['msg'] = "Username already exists.";
@@ -93,7 +114,21 @@ Class Actions extends DBConnection{
         }
         return json_encode($resp);
     }
+    function verify_csrf() {
+        if (
+            !isset($_POST['csrf_token']) ||
+            !isset($_SESSION['csrf_token']) ||
+            !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])
+        ) {
+            echo json_encode([
+                'status' => 'failed',
+                'msg' => 'Invalid CSRF token'
+            ]);
+            exit;
+        }
+    }
     function update_credentials(){
+        verify_csrf();
         extract($_POST);
         $data = "";
         foreach($_POST as $k => $v){
@@ -151,7 +186,8 @@ Class Actions extends DBConnection{
         }else{
             $sql = "UPDATE `category_list` set {$data} where category_id = '{$id}'";
         }
-        @$check= $this->query("SELECT COUNT(category_id) as count from `category_list` where `name` = '{$name}' ".($id > 0 ? " and category_id != '{$id}'" : ""))->fetchArray()['count'];
+        @$check= $this->query("SELECT COUNT(category_id) as count from `category_list` where `name` = '{$name}'
+         ".($id > 0 ? " and category_id != '{$id}'" : ""))->fetchArray()['count'];
         if(@$check> 0){
             $resp['status'] ='failed';
             $resp['msg'] = 'Category already exists.';
@@ -468,6 +504,7 @@ switch($a){
         echo $action->delete_user();
     break;
     case 'update_credentials':
+        require_login();
         echo $action->update_credentials();
     break;
     case 'save_category':
@@ -480,6 +517,7 @@ switch($a){
         echo $action->save_supplier();
     break;
     case 'delete_supplier':
+        require_admin();
         echo $action->delete_supplier();
     break;
     case 'save_product':
@@ -501,6 +539,7 @@ switch($a){
         echo $action->delete_transaction();
     break;
     default:
-    // default action here
+        http_response_code(400);
+        exit('invalid action');
     break;
 }

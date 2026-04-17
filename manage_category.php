@@ -1,9 +1,18 @@
 <?php
 require_once("DBConnection.php");
-if(isset($_GET['id'])){
-$qry = $conn->query("SELECT * FROM `category_list` where category_id = '{$_GET['id']}'");
-    foreach($qry->fetchArray() as $k => $v){
-        $$k = $v;
+if(isset($_GET['id']) && ctype_digit($_GET['id'])){
+    $id = (int) $_GET['id'];
+
+    $stmt = $conn->prepare("SELECT * FROM category_list WHERE category_id = :id");
+    $stmt->bindValue(':id', $id, SQLITE3_INTEGER);
+
+    $qry = $stmt->execute();
+    $row = $qry->fetchArray(SQLITE3_ASSOC);
+
+    if($row){
+        foreach($row as $k => $v){
+            $$k = $v;
+        }
     }
 }
 ?>
@@ -12,11 +21,13 @@ $qry = $conn->query("SELECT * FROM `category_list` where category_id = '{$_GET['
         <input type="hidden" name="id" value="<?php echo isset($category_id) ? $category_id : '' ?>">
         <div class="form-group">
             <label for="name" class="control-label">Name</label>
-            <input type="text" name="name" autofocus id="name" required class="form-control form-control-sm rounded-0" value="<?php echo isset($name) ? $name : '' ?>">
+            <input type="text" name="name" autofocus id="name" required
+             class="form-control form-control-sm rounded-0" value="<?php echo isset($name) ? $name : '' ?>">
         </div>
         <div class="form-group">
             <label for="description" class="control-label">Description</label>
-            <textarea name="description" id="description" cols="30" rows="3" class="form-control rounded-0" required><?php echo isset($description) ? $description : '' ?></textarea>
+            <textarea name="description" id="description" cols="30" rows="3" 
+            class="form-control rounded-0" required><?php echo isset($description) ? $description : '' ?></textarea>
         </div>
         <div class="form-group">
             <label for="status" class="control-label">Status</label>
